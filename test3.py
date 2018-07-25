@@ -2,17 +2,39 @@ import json
 from itertools import permutations
 from IPython.display import display
 from pprint import pprint
-from query_function import query_ticket, trans_ticket, query_station, query_station2, query_price
+import pandas as pd
+from query_function2 import query_ticket, trans_ticket, query_station, query_station2, query_price
+from qlog import Logger
+import logging
 
-with open("station_data//station_name_map.json", "r", encoding='utf8') as f:
-    data = json.load(f)
-train_code_list = [station['站点代码'] for station in data.values()][:10] #2747个站点
-day, ty = '2018-07-23', 'ADULT'
-for x in permutations(train_code_list, 2):
-    ss, es = x[0], x[1]
-    rawtiket_data = query_ticket(day, ss, es, ty)
-    ticket_data = trans_ticket(rawtiket_data)
-    display(ticket_data)
+if __name__ =='__main__':
+    logticket = Logger('log//ticket.log',logging.ERROR,logging.DEBUG)
+    with open("station_data//station_name_map.json", "r", encoding='utf8') as f:
+        data = json.load(f)
+    train_code_list = [station['站点代码'] for station in data.values()][:10] #2747个站点
+    # train_code_list = [station['站点代码'] for station in data.values()] #2747个站点
+    day, ty = '2018-07-23', 'ADULT'
+    df_list = []
+    for x in permutations(train_code_list, 2):
+        logticket.info(f"正在查询{x[0]},{x[1]}")
+        ss, es = x[0], x[1]
+        rawtiket_data = query_ticket(day, ss, es, ty, logticket)
+        if(len(rawtiket_data)==0):
+            pass
+        else:
+            ticket_data = trans_ticket(rawtiket_data)
+            df_list.append(ticket_data)
+    df_all = pd.concat(df_list, ignore_index=True)
+    df_all_2 = df_all.drop_duplicates()
+    df_all_2.to_csv('ticket.csv', encoding='utf8')
+    print(df_all.shape)
+    logticket.info(f"总DFshape为{df_all.shape}")
+    print(df_all_2.shape)
+    logticket.info(f"去重后DFshape为{df_all_2.shape}")
+
+
+
+
 # day, ss, es, ty = '2018-07-23', 'BJP', 'SHH', 'ADULT'
 # rawtiket_data = query_ticket(day, ss, es, ty)
 # ticket_data = trans_ticket(rawtiket_data)

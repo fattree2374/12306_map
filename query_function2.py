@@ -18,7 +18,7 @@ headers={'user-agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537
 price_map =  {'A1':'硬座', 'A2':'软座', 'A3':'硬卧', 'A4':'软卧', 'A6':'高级软卧', 'A9':'商务座/特等座', 'F':'动卧',
               'M':'一等座', 'O':'二等座', 'WZ':'无座'}
 # 第一个查询，返回一个列表，每个元素都是包含一个ticket信息的复杂字符串
-def query_ticket(train_date, from_station, to_station, ticket_type):
+def query_ticket(train_date, from_station, to_station, ticket_type, logticket):
     url='https://kyfw.12306.cn/otn/leftTicket/query'
     payload = {'leftTicketDTO.train_date': train_date, #日期
            'leftTicketDTO.from_station': from_station, #起点站
@@ -27,35 +27,40 @@ def query_ticket(train_date, from_station, to_station, ticket_type):
     try:
         r = requests.get(url, params=payload, headers=headers)
         data = r.json()['data']['result']
-        return data
-    except Exception:
+        return data 
+    except Exception as e:
         time.sleep(1)
-        print('延迟1秒')
-        query_ticket(train_date, from_station, to_station, ticket_type)
+        print('延迟1秒', e)
+        logticket.warn(f'延迟1秒, {e}')
+        print(train_date, from_station, to_station, ticket_type)
+        logticket.warn(f"{train_date}, {from_station}, {to_station}, {ticket_type}")
+        return query_ticket(train_date, from_station, to_station, ticket_type, logticket)
 
 # 对第一个查询进行格式转换，从复杂字符串中提取相关信息出来，存放在DF中
 # '起点站', '列车编号', '终点站', '出发站', '到达站', '出发时间', '到达时间', '历时', '起点站发车日期', '是否可以预订', '备注', 'seat_types', '软卧',
 # '无座', '商务座/特等座', '一等座', '二等座'
 def trans_ticket(ticket_list):
-    df_empty = pd.DataFrame(columns=['起点站', '列车编号', '终点站', '出发站', '到达站', '出发时间', '到达时间',
+    df_empty = pd.DataFrame(columns=['列车代码', '起点站', '列车编号', '终点站', '出发站', '到达站', '出发时间', '到达时间',
                                      '历时', '起点站发车日期', '是否可以预订', '备注', 'seat_types', '软卧',
                                      '无座', '商务座/特等座', '一等座', '二等座'])
     for ticket in ticket_list:
         ticket_split = ticket.split('|')
         # print(ticket_split[3], ticket_split[30])
         # pprint(ticket_split)
-        df_empty.loc[ticket_split[3],['备注', '列车编号', '起点站', '终点站', '出发站',
+        df_empty.loc[df_empty.index.size,['备注', '列车编号', '起点站', '终点站', '出发站',
                                       '到达站', '出发时间', '到达时间',
                                       '历时', '是否可以预订', '起点站发车日期', '软卧', '无座',
-                                      '二等座', '一等座', '商务座/特等座', 'seat_types']] = [ticket_split[1], ticket_split[2], 
+                                      '二等座', '一等座', '商务座/特等座', 'seat_types', '列车代码']] = [ticket_split[1], ticket_split[2], 
                                                       ticket_split[4],
                                                       ticket_split[5], ticket_split[6], ticket_split[7],
                                                       ticket_split[8], ticket_split[9], ticket_split[10], 
                                                       ticket_split[11], ticket_split[13], ticket_split[23],
                                                       ticket_split[26], ticket_split[30], ticket_split[31],
-                                                      ticket_split[32], ticket_split[35]]
-
-    return df_empty
+                                                      ticket_split[32], ticket_split[35], ticket_split[3]]
+    if (df_empty.empty is True):
+        print(ticket_list)
+    # return df_empty
+    df_empty.to_csv('ticket.csv', mode='a', encoding='utf8', header=False, index=False)
 
 # 第二个查询，输入的是出发站和到达站，而不是起点站和终点站
 def query_station(train_no, from_station, to_station, date):
